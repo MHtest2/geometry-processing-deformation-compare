@@ -52,6 +52,7 @@ int main(int argc, char *argv[])
 
   Eigen::MatrixXd V,U;
   Eigen::MatrixXi F;
+  int mode = 0;
   long sel = -1;
   Eigen::RowVector3f last_mouse;
   igl::min_quad_with_fixed_data<double> biharmonic_data, arap_data;
@@ -67,6 +68,7 @@ int main(int argc, char *argv[])
 [drag]   To move control point
 [space]  Toggle whether placing control points or deforming
 M,m      Switch deformation methods
+Q,q      Switch Laplacians for deformation
 U,u      Update deformation (i.e., run another iteration of solver)
 R,r      Reset control points 
 ⌘ Z      Undo
@@ -212,6 +214,18 @@ R,r      Reset control points
         method = (Method)(((int)(method)+1)%((int)(NUM_METHODS)));
         break;
       }
+      case 'Q':
+      case 'q':
+      {
+        mode = (mode + 1) % 3;
+        std::cout << mode << std::endl;
+        Eigen::VectorXi b;
+        igl::snap_points(s.CV,V,b);
+        // PRECOMPUTATION FOR DEFORMATION
+        biharmonic_precompute(V,F,b,biharmonic_data,mode);
+        arap_precompute(V,F,b,arap_data,arap_K,mode);
+        break;
+      }
       case 'R':
       case 'r':
       {
@@ -235,8 +249,8 @@ R,r      Reset control points
           Eigen::VectorXi b;
           igl::snap_points(s.CV,V,b);
           // PRECOMPUTATION FOR DEFORMATION
-          biharmonic_precompute(V,F,b,biharmonic_data);
-          arap_precompute(V,F,b,arap_data,arap_K);
+          biharmonic_precompute(V,F,b,biharmonic_data,mode);
+          arap_precompute(V,F,b,arap_data,arap_K,mode);
         }
         break;
       default:

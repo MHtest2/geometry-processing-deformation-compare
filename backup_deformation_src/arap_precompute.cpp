@@ -1,7 +1,8 @@
 #include "arap_precompute.h"
-#include "laplacian_and_mass.h"
+#include "cotmatrix.h"
 #include <igl/min_quad_with_fixed.h>
 #include <igl/cotmatrix_entries.h>
+#include <igl/edge_lengths.h>
 #include <iostream>
 
 using namespace std;
@@ -11,23 +12,19 @@ void arap_precompute(
   const Eigen::MatrixXi & F,
   const Eigen::VectorXi & b,
   igl::min_quad_with_fixed_data<double> & data,
-  Eigen::SparseMatrix<double> & K,
-  int mode)
+  Eigen::SparseMatrix<double> & K)
 {
   int num_points = V.rows();
   int num_faces = F.rows();
 
   K.resize(num_points, num_points * 3);
 
-  Eigen::SparseMatrix<double>Laplacian(num_points, num_points);
-  Eigen::SparseMatrix<double> Mass;
-  laplacian_and_mass(V, F, Laplacian, Mass, mode);
+  // Used in the first term of the Global step
+  Eigen::MatrixXd edge_lengths;
+  igl::edge_lengths(V, F, edge_lengths);
 
-  // Shape of C = (Num Faces, 3)
-  // For each face, it contains 1/2 * cotangent weights (from the Cotangent Laplacian)
-  // This will be used to construct K
-  Eigen::MatrixXd C;
-  igl::cotmatrix_entries(V, F, C);
+  Eigen::SparseMatrix<double>Laplacian(num_points, num_points);
+  cotmatrix(edge_lengths, F, Laplacian);
 
   // Update Data with pre computation of the Laplacian
   Eigen::SparseMatrix<double> Aeq;
@@ -50,23 +47,12 @@ void arap_precompute(
       int V_j = F(f, j);
 
       // Weighted edge difference vector
-      // Divide by 3 as normal for all entries
-      // However, for edge-based energies, since all energy lives on edges,
-      // we're (mostly) double counting all half-edges in this procedure, so divide by 2 again
+      // c_ij = edge_length_ij, so just normalize
+      // We divide by 3 as normal
+      // However, since all energy lives on edges,
+      // We're mostly doubling all half-edges in this procedure, so divide by 2 again
       // (yes the edges on the outside are only single counted, this isn't perfect)
-      Eigen::RowVector3d e_ij;
-      if (mode == 0) {
-        // Identity edge weight (double counted)
-        e_ij = (V.row(V_i) - V.row(V_j)) / 6.0; 
-      }
-      if (mode == 1) {
-        // c_ij = edge_length_ij, so just normalize (double counted)
-        e_ij = (V.row(V_i) - V.row(V_j)).normalized() / 6.0; 
-      }
-      if (mode == 2) {
-        // Custom edge weight based on cotangent matrix
-        e_ij = C(f, opposite_vertex) * (V.row(V_i) - V.row(V_j)) / 3.0; 
-      }
+      Eigen::RowVector3d e_ij = (V.row(V_i) - V.row(V_j)).normalized() / 6.0; 
 
       // sum is over all rotations k, such that the half-edge ij 
       // belongs to the half-edges of the faces incident on the k-th vertex

@@ -1,7 +1,9 @@
 #include "biharmonic_precompute.h"
 #include <igl/min_quad_with_fixed.h>
-#include "laplacian_and_mass.h"
+#include "igl/massmatrix.h"
+#include "cotmatrix.h"
 #include <iostream>
+#include <igl/edge_lengths.h>
 #include <Eigen/SparseCholesky>
 
 using namespace std;
@@ -10,14 +12,19 @@ void biharmonic_precompute(
   const Eigen::MatrixXd & V,
   const Eigen::MatrixXi & F,
   const Eigen::VectorXi & b,
-  igl::min_quad_with_fixed_data<double> & data,
-  int mode)
+  igl::min_quad_with_fixed_data<double> & data)
 {
   int num_points = V.rows();
 
+  // Used in the first term of the Global step
+  Eigen::MatrixXd edge_lengths;
+  igl::edge_lengths(V, F, edge_lengths);
+
   Eigen::SparseMatrix<double>Laplacian(num_points, num_points);
+  cotmatrix(edge_lengths, F, Laplacian);
+
   Eigen::SparseMatrix<double> Mass;
-  laplacian_and_mass(V, F, Laplacian, Mass, mode);
+  igl::massmatrix(V, F, igl::MASSMATRIX_TYPE_DEFAULT, Mass);
 
   // Invert diagonal Mass matrix
   Eigen::VectorXd diagonal = Mass.diagonal();

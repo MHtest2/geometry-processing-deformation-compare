@@ -27,7 +27,8 @@ void arap_precompute(
   const Eigen::MatrixXi & F,
   const Eigen::VectorXi & b,
   igl::min_quad_with_fixed_data<double> & data,
-  Eigen::SparseMatrix<double> & K);
+  Eigen::SparseMatrix<double> & K, 
+  int mode);
 
 #endif
 
